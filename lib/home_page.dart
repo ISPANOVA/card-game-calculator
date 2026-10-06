@@ -181,24 +181,30 @@ class _GameCard extends StatelessWidget {
         child: InkWell(
           borderRadius: r,
           onTap: onTap,
-          child: SizedBox(
-            height: 156,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 156),
             child: Stack(
               children: [
-                PositionedDirectional(end: 8, top: 14, bottom: 14, width: 132, child: art),
+                PositionedDirectional(end: 8, top: 14, bottom: 14, width: 124, child: art),
                 Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 140, 16),
+                  padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 136, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(title,
-                          style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: Felt.ivory)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(title,
+                            maxLines: 1,
+                            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: Felt.ivory)),
+                      ),
                       const SizedBox(height: 4),
                       Text(subtitle,
-                          maxLines: 2,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 13, color: Felt.muted, height: 1.45, fontWeight: FontWeight.w600)),
-                      const Spacer(),
+                      const SizedBox(height: 14),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(gradient: Felt.goldGradient, borderRadius: BorderRadius.circular(99)),
@@ -207,8 +213,12 @@ class _GameCard extends StatelessWidget {
                           children: [
                             const Icon(Icons.add_rounded, size: 18, color: Felt.deep),
                             const SizedBox(width: 4),
-                            Text(context.tr('newGame'),
-                                style: const TextStyle(color: Felt.deep, fontWeight: FontWeight.w900, fontSize: 13.5)),
+                            Flexible(
+                              child: Text(context.tr('newGame'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Felt.deep, fontWeight: FontWeight.w900, fontSize: 13.5)),
+                            ),
                           ],
                         ),
                       ),

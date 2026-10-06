@@ -1,10 +1,21 @@
 import 'package:card_game_calculator/core/store.dart';
 import 'package:card_game_calculator/main.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  // Real fonts, so text takes the room it takes on a phone.
+  setUpAll(() async {
+    final tajawal = FontLoader('Tajawal');
+    for (final w in ['Medium', 'Bold', 'ExtraBold', 'Black']) {
+      tajawal.addFont(rootBundle.load('assets/fonts/Tajawal-$w.ttf'));
+    }
+    await tajawal.load();
+    await (FontLoader('ReemKufi')..addFont(rootBundle.load('assets/fonts/ReemKufi-Bold.ttf'))).load();
+  });
+
   Future<void> boot(WidgetTester tester, String lang) async {
     SharedPreferences.setMockInitialValues({'lang': lang});
     tester.view.physicalSize = const Size(1080, 2340);
@@ -37,8 +48,9 @@ void main() {
       await tester.tap(find.byIcon(Icons.layers_rounded).first);
       await tester.pumpAndSettle();
       expect(find.text('K\n♥'), findsOneWidget);
-      await tester.pageBack();
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.layers_rounded), findsOneWidget);
     });
 
     testWidgets('plays an Estimation round ($lang)', (tester) async {
