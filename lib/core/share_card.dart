@@ -132,12 +132,12 @@ class ResultCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(
+          const Positioned(
             right: -30,
             top: -24,
             child: Opacity(opacity: 0.06, child: SuitIcon(Suit.spade, size: 150, color: Colors.white)),
           ),
-          Positioned(
+          const Positioned(
             left: -26,
             bottom: 40,
             child: Opacity(opacity: 0.06, child: SuitIcon(Suit.heart, size: 120, color: Colors.white)),

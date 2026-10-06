@@ -70,7 +70,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.check_rounded).last);
       await tester.pumpAndSettle();
-      expect(find.textContaining('-500'), findsWidgets);
+      // Player 1: Trix first (+200) and the whole Complex (−500).
+      expect(find.textContaining('-300'), findsWidgets);
     });
 
     testWidgets('plays an Estimation round ($lang)', (tester) async {
