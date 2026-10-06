@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/device.dart';
 import '../core/i18n.dart';
 import '../core/players_form.dart';
 import '../core/store.dart';
@@ -50,6 +51,7 @@ class _TrixSetupPageState extends State<TrixSetupPage> {
       firstKing: _firstKing,
     );
     await state.saveGame(game);
+    Sfx.shuffle();
     if (!mounted) return;
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => TrixGamePage(gameId: game.id)));
   }

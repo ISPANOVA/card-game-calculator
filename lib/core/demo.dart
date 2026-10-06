@@ -8,7 +8,10 @@ import '../home_page.dart';
 import '../trix/complex_entry_page.dart';
 import '../trix/trix_game_page.dart';
 import '../trix/trix_model.dart';
+import 'share_card.dart';
+import 'stats_page.dart';
 import 'store.dart';
+import 'theme.dart';
 
 /// Store screenshots: a web build made with --dart-define=SHOTS=true opens
 /// straight on a page filled with sample games (`?shot=…&lang=…`). Normal
@@ -100,6 +103,21 @@ Widget demoHome(AppState state, String shot) {
           risk: [0, 1, 0, 0],
           trump: EstTrump.noTrump,
           tricks: [3, 6, 4, 0],
+        ),
+      );
+    case 'stats':
+      return const StatsPage();
+    case 'share':
+      return Scaffold(
+        body: FeltBackground(
+          child: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FittedBox(child: ResultCard(game: finished)),
+              ),
+            ),
+          ),
         ),
       );
     case 'rules':

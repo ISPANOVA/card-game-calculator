@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../core/device.dart';
 import '../core/i18n.dart';
 import '../core/theme.dart';
 import 'trix_model.dart';
@@ -34,7 +34,7 @@ class _TrixEntryState extends State<_TrixEntry> {
   late final List<int> _order = List.of(widget.initial ?? const []);
 
   void _tap(int p) {
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       if (_order.contains(p)) {
         _order.removeRange(_order.indexOf(p), _order.length);

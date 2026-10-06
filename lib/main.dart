@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/demo.dart';
+import 'core/device.dart';
 import 'core/store.dart';
 import 'core/theme.dart';
 import 'home_page.dart';
@@ -15,9 +16,11 @@ Future<void> main() async {
     systemNavigationBarColor: Felt.deep,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
+  if (!kShots) await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final state = await AppState.load();
   if (kShots) state.lang = Uri.base.queryParameters['lang'] == 'en' ? 'en' : 'ar';
   runApp(CardGameCalculator(state: state));
+  Sfx.init();
 }
 
 class CardGameCalculator extends StatelessWidget {

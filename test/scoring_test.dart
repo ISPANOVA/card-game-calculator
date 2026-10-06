@@ -137,6 +137,14 @@ void main() {
       expect(p, containsAll(['bids13', 'tricks', 'callerMax']));
     });
 
+    test('the deal goes round the table', () {
+      final g = EstGame(id: 'd', created: DateTime(2026), players: ['a', 'b', 'c', 'd'], firstDealer: 2);
+      expect(g.dealerOf(0), 2);
+      expect(g.firstBidderOf(0), 3);
+      expect(g.dealerOf(3), 1);
+      expect(EstGame.fromJson(g.toJson()).firstDealer, 2);
+    });
+
     test('rules round-trip and edit', () {
       final edited = r.withValue('dashUnder', 30).withSaaydeh(false);
       final back = EstRules.fromJson(edited.toJson());

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import 'device.dart';
 import 'i18n.dart';
 import 'theme.dart';
 
@@ -41,7 +41,7 @@ class NumberStepper extends StatelessWidget {
           iconSize: compact ? 18 : 20,
           onPressed: enabled
               ? () {
-                  HapticFeedback.selectionClick();
+                  Sfx.tap();
                   onChanged(value + delta);
                 }
               : null,
@@ -139,7 +139,7 @@ class _Chip extends StatelessWidget {
           onTap: onTap == null
               ? null
               : () {
-                  HapticFeedback.selectionClick();
+                  Sfx.tap();
                   onTap!();
                 },
           child: Padding(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../core/device.dart';
 import '../core/i18n.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
@@ -145,7 +145,7 @@ class _ComplexEntryPageState extends State<ComplexEntryPage> {
   }
 
   void _tapPlayer(int p) {
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       if (_step > 0) {
         _active = p;
@@ -172,7 +172,7 @@ class _ComplexEntryPageState extends State<ComplexEntryPage> {
   }
 
   void _selectCard(int c) {
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       _card = c;
       _askDoubler = false;
@@ -181,7 +181,7 @@ class _ComplexEntryPageState extends State<ComplexEntryPage> {
 
   void _toggleDouble() {
     if (_card < 0) return;
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       _doubled[_card] = !_doubled[_card];
       if (_doubled[_card]) {
@@ -196,7 +196,7 @@ class _ComplexEntryPageState extends State<ComplexEntryPage> {
   void _pick(int n) {
     final p = _active;
     if (p < 0) return;
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       final values = _step == 1 ? _diamonds : _tricks;
       values[p] = n;

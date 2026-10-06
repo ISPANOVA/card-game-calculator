@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../core/celebrate.dart';
+import '../core/device.dart';
+import '../core/game_actions.dart';
 import '../core/i18n.dart';
+import '../core/score_chart.dart';
+import '../core/share_card.dart';
 import '../core/store.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
 import 'complex_entry_page.dart';
 import 'trix_entry_sheet.dart';
 import 'trix_model.dart';
-import 'trix_setup_page.dart';
 
 class TrixGamePage extends StatelessWidget {
   final String gameId;
@@ -36,13 +39,25 @@ class TrixGamePage extends StatelessWidget {
         round = await showTrixEntry(context, game: game, kingdom: kingdom, initial: existing?.trixOrder);
       }
       if (round == null) return;
+      final wasFinished = game.finished;
       if (index == null) {
         game.rounds.add(round);
       } else {
         game.rounds[index] = round;
       }
       await state.saveGame(game);
-      if (game.finished) HapticFeedback.heavyImpact();
+      Sfx.chips();
+      if (!wasFinished && game.finished) {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        if (!context.mounted) return;
+        await showCelebration(
+          context,
+          winner: _winnerName(context, game),
+          subtitle: context.tr('trixComplex'),
+          onShare: () => shareGame(context, game),
+          onRematch: () => rematch(context, game),
+        );
+      }
     }
 
     Future<void> undo() async {
@@ -56,34 +71,18 @@ class TrixGamePage extends StatelessWidget {
     final totals = game.totals;
     final teams = game.partners ? game.teamTotals : null;
 
-    return Scaffold(
+    return KeepAwake(
+      on: state.keepAwake,
+      child: Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(context.tr('trixComplex')),
-        actions: [
-          IconButton(
-            tooltip: context.tr('undo'),
-            onPressed: game.rounds.isEmpty ? null : undo,
-            icon: const Icon(Icons.undo_rounded),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (v) async {
-              if (v == 'copy') {
-                await Clipboard.setData(ClipboardData(text: _summary(context, game)));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.tr('copied'))));
-                }
-              } else if (v == 'new') {
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TrixSetupPage()));
-              }
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(value: 'copy', child: Text(ctx.tr('copyResults'))),
-              PopupMenuItem(value: 'new', child: Text(ctx.tr('newGame'))),
-            ],
-          ),
-        ],
+        actions: gameBarActions(
+          context,
+          game,
+          onUndo: game.rounds.isEmpty ? null : undo,
+          summary: _summary(context, game),
+        ),
       ),
       body: FeltBackground(
         child: SafeArea(
@@ -95,6 +94,8 @@ class TrixGamePage extends StatelessWidget {
                   title: context.tr('winnerIs', {'name': _winnerName(context, game)}),
                   subtitle: context.tr('gameOver'),
                 ),
+                const SizedBox(height: 10),
+                FinishedActions(game: game),
                 const SizedBox(height: 14),
               ],
               ScoreBoard(players: game.players, totals: totals, teams: teams),
@@ -122,7 +123,8 @@ class TrixGamePage extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16.5),
                       ),
                       const SizedBox(height: 4),
-                      Text(context.tr('chooseContract'), style: const TextStyle(color: Felt.muted, fontSize: 13)),
+                      Text(context.tr('chooseContractOf', {'name': game.players[game.ownerOf(k)]}),
+                          style: const TextStyle(color: Felt.muted, fontSize: 13)),
                       const SizedBox(height: 14),
                       Row(
                         children: [
@@ -151,6 +153,10 @@ class TrixGamePage extends StatelessWidget {
                   ),
                 ),
               ],
+              if (game.rounds.length >= 2) ...[
+                SectionTitle(context.tr('scoreTrend'), icon: Icons.show_chart_rounded),
+                ScoreChart(players: game.players, rounds: [for (final r in game.rounds) r.scores]),
+              ],
               if (game.rounds.isNotEmpty) ...[
                 SectionTitle(context.tr('rounds'), icon: Icons.receipt_long_rounded),
                 for (var i = game.rounds.length - 1; i >= 0; i--)
@@ -168,6 +174,7 @@ class TrixGamePage extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

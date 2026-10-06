@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/device.dart';
 import '../core/i18n.dart';
 import '../core/players_form.dart';
 import '../core/store.dart';
 import '../core/theme.dart';
+import '../core/widgets.dart';
 import 'est_game_page.dart';
 import 'est_model.dart';
 import 'est_rules_page.dart';
@@ -18,6 +20,17 @@ class EstSetupPage extends StatefulWidget {
 class _EstSetupPageState extends State<EstSetupPage> {
   late final List<TextEditingController> _names = PlayersForm.controllersFor(context);
   late EstRules _rules = AppScope.read(context).estRules;
+  int _dealer = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in _names) {
+      c.addListener(_refresh);
+    }
+  }
+
+  void _refresh() => setState(() {});
 
   @override
   void dispose() {
@@ -31,8 +44,15 @@ class _EstSetupPageState extends State<EstSetupPage> {
     final state = AppScope.read(context);
     final names = PlayersForm.namesOf(context, _names);
     await state.rememberNames([for (final c in _names) c.text.trim()]);
-    final game = EstGame(id: AppState.newId(), created: DateTime.now(), players: names, rules: _rules);
+    final game = EstGame(
+      id: AppState.newId(),
+      created: DateTime.now(),
+      players: names,
+      rules: _rules,
+      firstDealer: _dealer,
+    );
     await state.saveGame(game);
+    Sfx.shuffle();
     if (!mounted) return;
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => EstGamePage(gameId: game.id)));
   }
@@ -58,6 +78,12 @@ class _EstSetupPageState extends State<EstSetupPage> {
             children: [
               SectionTitle(context.tr('playersInOrder'), icon: Icons.groups_rounded),
               PlayersForm(controllers: _names),
+              SectionTitle(context.tr('firstDealer'), icon: Icons.style_rounded),
+              PlayerPicker(
+                players: PlayersForm.namesOf(context, _names),
+                selected: _dealer,
+                onSelect: (p) => setState(() => _dealer = p),
+              ),
               SectionTitle(
                 context.tr('rules'),
                 icon: Icons.rule_rounded,

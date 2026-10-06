@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../core/celebrate.dart';
+import '../core/device.dart';
+import '../core/game_actions.dart';
 import '../core/i18n.dart';
+import '../core/score_chart.dart';
+import '../core/share_card.dart';
 import '../core/store.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
 import 'est_model.dart';
 import 'est_round_page.dart';
-import 'est_setup_page.dart';
 
 class EstGamePage extends StatelessWidget {
   final String gameId;
@@ -36,6 +39,7 @@ class EstGamePage extends StatelessWidget {
         ),
       );
       if (entry == null) return;
+      final wasFinished = game.finished;
       if (index != null) {
         game.rounds[index] = entry.round;
       } else if (entry.complete) {
@@ -45,7 +49,29 @@ class EstGamePage extends StatelessWidget {
         game.draft = entry.round;
       }
       await state.saveGame(game);
-      if (game.finished) HapticFeedback.heavyImpact();
+      if (!entry.complete) {
+        Sfx.tap();
+        return;
+      }
+      Sfx.chips();
+      if (!context.mounted) return;
+      final i = index ?? game.rounds.length - 1;
+      if (game.rules.saaydeh && game.results[i].saaydeh && i == game.rounds.length - 1 && !game.finished) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        if (!context.mounted) return;
+        await showSaaydeh(context, game.nextMultiplier);
+      }
+      if (!wasFinished && game.finished) {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        if (!context.mounted) return;
+        await showCelebration(
+          context,
+          winner: _winner(game),
+          subtitle: context.tr('estimation'),
+          onShare: () => shareGame(context, game),
+          onRematch: () => rematch(context, game),
+        );
+      }
     }
 
     Future<void> undo() async {
@@ -60,34 +86,18 @@ class EstGamePage extends StatelessWidget {
     }
 
     final draft = game.draft;
-    return Scaffold(
+    return KeepAwake(
+      on: state.keepAwake,
+      child: Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(context.tr('estimation')),
-        actions: [
-          IconButton(
-            tooltip: context.tr('undo'),
-            onPressed: game.rounds.isEmpty && draft == null ? null : undo,
-            icon: const Icon(Icons.undo_rounded),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (v) async {
-              if (v == 'copy') {
-                await Clipboard.setData(ClipboardData(text: _summary(context, game)));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.tr('copied'))));
-                }
-              } else if (v == 'new') {
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const EstSetupPage()));
-              }
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(value: 'copy', child: Text(ctx.tr('copyResults'))),
-              PopupMenuItem(value: 'new', child: Text(ctx.tr('newGame'))),
-            ],
-          ),
-        ],
+        actions: gameBarActions(
+          context,
+          game,
+          onUndo: game.rounds.isEmpty && draft == null ? null : undo,
+          summary: _summary(context, game),
+        ),
       ),
       body: FeltBackground(
         child: SafeArea(
@@ -96,6 +106,8 @@ class EstGamePage extends StatelessWidget {
             children: [
               if (game.finished) ...[
                 WinnerBanner(title: context.tr('winnerIs', {'name': _winner(game)}), subtitle: context.tr('gameOver')),
+                const SizedBox(height: 10),
+                FinishedActions(game: game),
                 const SizedBox(height: 14),
               ],
               ScoreBoard(players: game.players, totals: totals),
@@ -120,6 +132,11 @@ class EstGamePage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 10),
+                      _TurnRow(
+                        dealer: game.players[game.dealerOf(next)],
+                        first: game.players[game.firstBidderOf(next)],
+                      ),
+                      const SizedBox(height: 10),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(99),
                         child: LinearProgressIndicator(
@@ -142,6 +159,10 @@ class EstGamePage extends StatelessWidget {
                     ],
                   ),
                 ),
+              if (game.rounds.length >= 2) ...[
+                SectionTitle(context.tr('scoreTrend'), icon: Icons.show_chart_rounded),
+                ScoreChart(players: game.players, rounds: [for (final r in results) r.scores]),
+              ],
               if (game.rounds.isNotEmpty) ...[
                 SectionTitle(context.tr('rounds'), icon: Icons.receipt_long_rounded),
                 for (var i = game.rounds.length - 1; i >= 0; i--)
@@ -161,6 +182,7 @@ class EstGamePage extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -179,6 +201,51 @@ class EstGamePage extends StatelessWidget {
     }
     b.writeln(context.tr('roundOf', {'n': g.rounds.length, 'of': g.rules.rounds}));
     return b.toString();
+  }
+}
+
+/// Who deals the next round and who bids first.
+class _TurnRow extends StatelessWidget {
+  final String dealer;
+  final String first;
+  const _TurnRow({required this.dealer, required this.first});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget item(IconData icon, String label, String name) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: Felt.gold),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label, style: const TextStyle(fontSize: 11.5, color: Felt.muted, fontWeight: FontWeight.w700)),
+                      Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    return Row(
+      children: [
+        item(Icons.style_rounded, context.tr('dealer'), dealer),
+        const SizedBox(width: 8),
+        item(Icons.record_voice_over_rounded, context.tr('firstBidder'), first),
+      ],
+    );
   }
 }
 

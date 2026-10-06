@@ -9,7 +9,7 @@ handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(
 server = http.server.ThreadingHTTPServer(('127.0.0.1', 8123), handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 
-SHOTS = ['home', 'trix', 'complex', 'est', 'round', 'rules']
+SHOTS = ['home', 'trix', 'complex', 'est', 'round', 'stats', 'share', 'rules']
 with sync_playwright() as p:
     browser = p.chromium.launch()
     for lang in ['ar', 'en']:

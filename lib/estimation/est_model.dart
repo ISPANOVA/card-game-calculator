@@ -262,6 +262,9 @@ class EstGame {
   /// Bids of the round being played, saved before its tricks are known.
   EstRound? draft;
 
+  /// Who dealt the first round; the deal goes round the table.
+  final int firstDealer;
+
   EstGame({
     required this.id,
     required this.created,
@@ -269,7 +272,12 @@ class EstGame {
     this.rules = EstRules.defaults,
     List<EstRound>? rounds,
     this.draft,
+    this.firstDealer = 0,
   }) : rounds = rounds ?? [];
+
+  /// Who deals round [roundIndex], and who bids first (the next player).
+  int dealerOf(int roundIndex) => (firstDealer + roundIndex) % 4;
+  int firstBidderOf(int roundIndex) => (dealerOf(roundIndex) + 1) % 4;
 
   bool isFast(int roundIndex) => roundIndex >= rules.normalRounds;
   bool get finished => rounds.length >= rules.rounds;
@@ -312,6 +320,7 @@ class EstGame {
         'rules': rules.toJson(),
         'rounds': [for (final r in rounds) r.toJson()],
         if (draft != null) 'draft': draft!.toJson(),
+        'firstDealer': firstDealer,
       };
 
   factory EstGame.fromJson(Map<String, dynamic> j) => EstGame(
@@ -323,5 +332,6 @@ class EstGame {
           for (final r in (j['rounds'] as List)) EstRound.fromJson(Map<String, dynamic>.from(r as Map)),
         ],
         draft: j['draft'] == null ? null : EstRound.fromJson(Map<String, dynamic>.from(j['draft'] as Map)),
+        firstDealer: (j['firstDealer'] ?? 0) as int,
       );
 }

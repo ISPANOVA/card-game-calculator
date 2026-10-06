@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../core/device.dart';
 import '../core/i18n.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
@@ -144,7 +144,7 @@ class _EstRoundPageState extends State<EstRoundPage> {
   // ------------------------------------------------------------- actions ---
 
   void _tapPlayer(int p) {
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       if (_phase == 0 && _caller < 0) {
         _caller = p;
@@ -157,7 +157,7 @@ class _EstRoundPageState extends State<EstRoundPage> {
   void _pick(int n) {
     final p = _active;
     if (p < 0) return;
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       if (_phase == 0) {
         _bids[p] = n;
@@ -184,7 +184,7 @@ class _EstRoundPageState extends State<EstRoundPage> {
   void _dashCall() {
     final p = _active;
     if (p < 0 || p == _caller) return;
-    HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() {
       _dashCalls[p] = true;
       _bids[p] = 0;
@@ -394,7 +394,6 @@ class _EstRoundPageState extends State<EstRoundPage> {
             ? (bidsValid ? () => _setPhase(1) : null)
             : (tricksDone && round.problems(_rules).isEmpty
                 ? () {
-                    HapticFeedback.mediumImpact();
                     Navigator.pop(context, EstEntry(round, true));
                   }
                 : null),

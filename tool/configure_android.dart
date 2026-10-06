@@ -10,6 +10,7 @@ void main() {
   ok &= _step('gradle', _gradle);
   ok &= _step('gradle.properties', _gradleProperties);
   ok &= _step('manifest', _manifest);
+  ok &= _step('native code', _native);
   if (!ok) exit(1);
 }
 
@@ -59,6 +60,9 @@ android {
       'signingConfig = if (keystorePropertiesFile.exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")',
     );
   }
+  if (!s.contains('androidx.core:core-ktx')) {
+    s += '\ndependencies {\n    implementation("androidx.core:core-ktx:1.13.1")\n}\n';
+  }
   kts.writeAsStringSync(s);
 }
 
@@ -78,5 +82,35 @@ void _manifest() {
   if (!f.existsSync()) throw 'AndroidManifest.xml not found';
   var s = f.readAsStringSync();
   s = s.replaceAll(RegExp(r'android:label="[^"]*"'), 'android:label="$label"');
+  if (!s.contains('FileProvider')) {
+    s = s.replaceFirst(
+      '</application>',
+      '''    <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="$appId.share"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
+    </application>''',
+    );
+  }
   f.writeAsStringSync(s);
+}
+
+/// MainActivity with the app's channel (screen on, sounds, sharing).
+void _native() {
+  final activities = Directory('android/app/src/main/kotlin')
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => f.path.endsWith('MainActivity.kt'))
+      .toList();
+  if (activities.length != 1) throw 'MainActivity.kt not found';
+  final src = File('tool/android/MainActivity.kt').readAsStringSync();
+  final pkg = RegExp(r'^package\s+(\S+)', multiLine: true).firstMatch(activities.first.readAsStringSync())!.group(1)!;
+  activities.first.writeAsStringSync(src.replaceFirst(RegExp(r'^package\s+\S+', multiLine: true), 'package $pkg'));
+  final xml = Directory('android/app/src/main/res/xml')..createSync(recursive: true);
+  File('tool/android/share_paths.xml').copySync('${xml.path}/share_paths.xml');
 }

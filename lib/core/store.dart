@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../estimation/est_model.dart';
 import '../trix/trix_model.dart';
+import 'device.dart';
 
 /// Everything the app keeps: language, saved games, last names, default
 /// Estimation rules. All on the device; nothing leaves it.
@@ -17,11 +18,15 @@ class AppState extends ChangeNotifier {
   static const _kGames = 'games';
   static const _kNames = 'names';
   static const _kRules = 'est_rules';
+  static const _kSound = 'sound';
+  static const _kAwake = 'keep_awake';
 
   String lang = 'ar';
   final List<Object> games = [];
   List<String> lastNames = [];
   EstRules estRules = EstRules.defaults;
+  bool sound = true;
+  bool keepAwake = true;
 
   static Future<AppState> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -29,6 +34,9 @@ class AppState extends ChangeNotifier {
     s.lang = prefs.getString(_kLang) ??
         (WidgetsBinding.instance.platformDispatcher.locale.languageCode == 'ar' ? 'ar' : 'en');
     s.lastNames = prefs.getStringList(_kNames) ?? [];
+    s.sound = prefs.getBool(_kSound) ?? true;
+    s.keepAwake = prefs.getBool(_kAwake) ?? true;
+    Sfx.enabled = s.sound;
     try {
       final raw = prefs.getString(_kRules);
       if (raw != null) s.estRules = EstRules.fromJson(Map<String, dynamic>.from(jsonDecode(raw) as Map));
@@ -81,6 +89,19 @@ class AppState extends ChangeNotifier {
     games.removeWhere((g) => idOf(g) == id);
     notifyListeners();
     await _persist();
+  }
+
+  Future<void> setSound(bool on) async {
+    sound = on;
+    Sfx.enabled = on;
+    notifyListeners();
+    await _prefs.setBool(_kSound, on);
+  }
+
+  Future<void> setKeepAwake(bool on) async {
+    keepAwake = on;
+    notifyListeners();
+    await _prefs.setBool(_kAwake, on);
   }
 
   Future<void> rememberNames(List<String> names) async {

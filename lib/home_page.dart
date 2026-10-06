@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/about_page.dart';
+import 'core/stats_page.dart';
 import 'core/i18n.dart';
 import 'core/store.dart';
 import 'core/theme.dart';
@@ -67,7 +68,16 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 24),
+                  child: Text(
+                    context.tr('madeBy'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Felt.muted.withValues(alpha: 0.7), fontSize: 12.5, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -87,7 +97,10 @@ class _Header extends StatelessWidget {
         const SuitsMark(size: 52),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Card Game',
@@ -99,22 +112,50 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
+          ),
         ),
-        _LangToggle(state: state),
-        const SizedBox(width: 6),
-        IconButton(
-          tooltip: context.tr('about'),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())),
-          icon: const Icon(Icons.info_outline_rounded, color: Felt.muted),
+        _HeaderButton(
+          icon: Icons.insights_rounded,
+          tooltip: context.tr('stats'),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsPage())),
+        ),
+        const SizedBox(width: 8),
+        _HeaderButton(
+          icon: Icons.settings_rounded,
+          tooltip: context.tr('settings'),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())),
         ),
       ],
     );
   }
 }
 
-class _LangToggle extends StatelessWidget {
+class _HeaderButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _HeaderButton({required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.06),
+        shape: CircleBorder(side: BorderSide(color: Felt.gold.withValues(alpha: 0.3))),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(padding: const EdgeInsets.all(10), child: Icon(icon, color: Felt.gold, size: 22)),
+        ),
+      ),
+    );
+  }
+}
+
+class LangToggle extends StatelessWidget {
   final AppState state;
-  const _LangToggle({required this.state});
+  const LangToggle({super.key, required this.state});
 
   @override
   Widget build(BuildContext context) {
