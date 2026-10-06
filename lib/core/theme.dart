@@ -134,7 +134,6 @@ ThemeData buildTheme(bool arabic) {
     dividerTheme: DividerThemeData(color: Colors.white.withValues(alpha: 0.08), space: 1),
     pageTransitionsTheme: const PageTransitionsTheme(builders: {
       TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
     }),
   );
 }
