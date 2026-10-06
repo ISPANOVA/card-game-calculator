@@ -167,28 +167,21 @@ class FeltBackground extends StatelessWidget {
 class _SuitsPainter extends CustomPainter {
   const _SuitsPainter();
 
-  static const _suits = ['♠', '♥', '♦', '♣'];
-
   @override
   void paint(Canvas canvas, Size size) {
     final rnd = math.Random(7);
+    final paint = Paint()..color = Colors.white.withValues(alpha: 0.03);
     const step = 92.0;
     var i = 0;
     for (var y = 20.0; y < size.height; y += step) {
       for (var x = (i.isEven ? 16.0 : 62.0); x < size.width; x += step) {
-        final tp = TextPainter(
-          text: TextSpan(
-            text: _suits[(i + (x ~/ step)) % 4],
-            style: TextStyle(fontSize: 22 + rnd.nextDouble() * 8, color: Colors.white.withValues(alpha: 0.028)),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final s = 20 + rnd.nextDouble() * 8;
         canvas.save();
         canvas.translate(x, y);
         canvas.rotate((rnd.nextDouble() - 0.5) * 0.6);
-        tp.paint(canvas, Offset.zero);
+        canvas.scale(s / 100);
+        canvas.drawPath(Suit.values[(i + (x ~/ step)) % 4].path, paint);
         canvas.restore();
-        tp.dispose();
       }
       i++;
     }
@@ -196,6 +189,83 @@ class _SuitsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// The four suits, drawn as shapes in a 100×100 box.
+enum Suit {
+  spade, heart, diamond, club;
+
+  bool get red => this == heart || this == diamond;
+
+  Path get path => _paths[index];
+
+  static final List<Path> _paths = [
+    Path()
+      ..moveTo(50, 4)
+      ..cubicTo(78, 30, 96, 44, 96, 60)
+      ..cubicTo(96, 75, 84, 83, 71, 83)
+      ..cubicTo(63, 83, 56, 79, 53, 73)
+      ..cubicTo(54, 83, 58, 90, 66, 96)
+      ..lineTo(34, 96)
+      ..cubicTo(42, 90, 46, 83, 47, 73)
+      ..cubicTo(44, 79, 37, 83, 29, 83)
+      ..cubicTo(16, 83, 4, 75, 4, 60)
+      ..cubicTo(4, 44, 22, 30, 50, 4)
+      ..close(),
+    Path()
+      ..moveTo(50, 90)
+      ..cubicTo(22, 68, 4, 50, 4, 30)
+      ..cubicTo(4, 14, 16, 4, 30, 4)
+      ..cubicTo(40, 4, 47, 10, 50, 18)
+      ..cubicTo(53, 10, 60, 4, 70, 4)
+      ..cubicTo(84, 4, 96, 14, 96, 30)
+      ..cubicTo(96, 50, 78, 68, 50, 90)
+      ..close(),
+    Path()
+      ..moveTo(50, 2)
+      ..lineTo(88, 50)
+      ..lineTo(50, 98)
+      ..lineTo(12, 50)
+      ..close(),
+    Path()
+      ..addOval(Rect.fromCircle(center: const Offset(50, 26), radius: 21))
+      ..addOval(Rect.fromCircle(center: const Offset(27, 56), radius: 21))
+      ..addOval(Rect.fromCircle(center: const Offset(73, 56), radius: 21))
+      ..moveTo(44, 60)
+      ..cubicTo(44, 80, 40, 90, 32, 96)
+      ..lineTo(68, 96)
+      ..cubicTo(60, 90, 56, 80, 56, 60)
+      ..close(),
+  ];
+}
+
+/// A suit shape at [size], in [color] (red or black by default).
+class SuitIcon extends StatelessWidget {
+  final Suit suit;
+  final double size;
+  final Color? color;
+  const SuitIcon(this.suit, {super.key, this.size = 20, this.color});
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+        size: Size.square(size),
+        painter: _SuitPainter(suit, color ?? (suit.red ? const Color(0xFFC62828) : const Color(0xFF16201B))),
+      );
+}
+
+class _SuitPainter extends CustomPainter {
+  final Suit suit;
+  final Color color;
+  const _SuitPainter(this.suit, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 100, size.height / 100);
+    canvas.drawPath(suit.path, Paint()..color = color..isAntiAlias = true);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SuitPainter old) => old.suit != suit || old.color != color;
 }
 
 /// A soft glass panel with a thin gold edge.
@@ -305,9 +375,7 @@ class SuitsMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = size * 0.27;
-    Widget suit(String c, Color col) =>
-        Text(c, style: TextStyle(fontSize: s, height: 1, color: col, fontFamily: 'Roboto'));
+    final s = size * 0.26;
     return Container(
       width: size,
       height: size,
@@ -320,8 +388,17 @@ class SuitsMark extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [suit('♠', Felt.deep), suit('♥', const Color(0xFFB3261E))]),
-            Row(mainAxisSize: MainAxisSize.min, children: [suit('♦', const Color(0xFFB3261E)), suit('♣', Felt.deep)]),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              SuitIcon(Suit.spade, size: s, color: Felt.deep),
+              SizedBox(width: s * 0.12),
+              SuitIcon(Suit.heart, size: s, color: const Color(0xFFB3261E)),
+            ]),
+            SizedBox(height: s * 0.12),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              SuitIcon(Suit.diamond, size: s, color: const Color(0xFFB3261E)),
+              SizedBox(width: s * 0.12),
+              SuitIcon(Suit.club, size: s, color: Felt.deep),
+            ]),
           ],
         ),
       ),
@@ -329,7 +406,16 @@ class SuitsMark extends StatelessWidget {
   }
 }
 
+/// Left-to-right mark: keeps "−30" from turning into "30−" in Arabic.
+const lrm = '\u200E';
+
+/// A number that reads correctly inside Arabic text.
+String numText(int v) => '$lrm$v';
+
 /// Signed score text: green when positive, red when negative.
-String signed(int v) => v > 0 ? '+$v' : '$v';
+String signed(int v) => v > 0 ? '$lrm+$v' : '$lrm$v';
+
+/// "+2" / "−3" style difference.
+String diffText(int v) => v > 0 ? '$lrm+$v' : '$lrm−${-v}';
 
 Color scoreColor(int v) => v > 0 ? Felt.win : (v < 0 ? Felt.lose : Felt.muted);

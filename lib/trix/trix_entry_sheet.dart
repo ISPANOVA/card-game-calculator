@@ -145,7 +145,7 @@ class _PlayerRow extends StatelessWidget {
                   child: Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5)),
                 ),
                 if (on)
-                  Text('+${TrixScoring.trixPlaces[place]}',
+                  Text(diffText(TrixScoring.trixPlaces[place]),
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Felt.win)),
               ],
             ),

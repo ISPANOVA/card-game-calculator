@@ -264,7 +264,7 @@ class _TeamTile extends StatelessWidget {
               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Felt.muted)),
           const SizedBox(height: 2),
           FittedBox(
-            child: Text('$total',
+            child: Text(numText(total),
                 style: TextStyle(
                     fontSize: 26, fontWeight: FontWeight.w900, color: leading ? Felt.gold : Felt.ivory, height: 1.2)),
           ),
@@ -322,7 +322,7 @@ class _SeatTotal extends StatelessWidget {
           curve: Curves.easeOutCubic,
           builder: (context, v, _) => FittedBox(
             child: Text(
-              '${v.round()}',
+              numText(v.round()),
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: leader ? Felt.gold : Felt.ivory),
             ),
           ),

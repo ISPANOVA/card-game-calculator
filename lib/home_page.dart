@@ -170,6 +170,7 @@ class _GameCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = BorderRadius.circular(26);
     return DecoratedBox(
+      position: DecorationPosition.background,
       decoration: BoxDecoration(
         borderRadius: r,
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
@@ -178,6 +179,8 @@ class _GameCard extends StatelessWidget {
       ),
       child: Material(
         type: MaterialType.transparency,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: r,
         child: InkWell(
           borderRadius: r,
           onTap: onTap,
@@ -185,7 +188,7 @@ class _GameCard extends StatelessWidget {
             constraints: const BoxConstraints(minHeight: 156),
             child: Stack(
               children: [
-                PositionedDirectional(end: 8, top: 14, bottom: 14, width: 124, child: art),
+                PositionedDirectional(end: 10, top: 10, bottom: 10, width: 120, child: art),
                 Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 136, 16),
                   child: Column(
@@ -244,8 +247,8 @@ class _CardFan extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.ltr,
       child: LayoutBuilder(builder: (context, c) {
-        final h = c.maxHeight * 0.86;
-        final w = h * 0.68;
+        final w = (c.maxWidth * 0.46).clamp(30.0, c.maxHeight * 0.6);
+        final h = w * 1.45;
         return Stack(
           alignment: Alignment.center,
           children: [
@@ -395,7 +398,7 @@ class _GameTile extends StatelessWidget {
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          '${finished ? '🏆 ' : ''}${players[lead]} ${totals[lead]}',
+                          '${finished ? '🏆 ' : ''}${players[lead]} ${numText(totals[lead])}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Felt.ivory),

@@ -43,7 +43,7 @@ void main() {
       }
       await tester.tap(find.byIcon(Icons.check_rounded).last);
       await tester.pumpAndSettle();
-      expect(find.text('+200'), findsWidgets);
+      expect(find.textContaining('+200'), findsWidgets);
       // Complex page opens and lays out.
       await tester.tap(find.byIcon(Icons.layers_rounded).first);
       await tester.pumpAndSettle();
@@ -61,12 +61,23 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.record_voice_over_rounded).last);
       await tester.pumpAndSettle();
-      // Player 1 bids 5: the call goes to them.
-      for (var i = 0; i < 5; i++) {
-        await tester.tap(find.byIcon(Icons.add_rounded).first);
-        await tester.pump();
-      }
+      // Player 1 has the call with 5; then the others tap their numbers.
+      final p = lang == 'ar' ? 'لاعب' : 'Player';
+      await tester.tap(find.text('$p 1').first);
       await tester.pumpAndSettle();
+      await tester.tap(find.text('5').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('$p 2 —'), findsOneWidget);
+      // Above the call is locked.
+      await tester.tap(find.text('4').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('3').last);
+      await tester.pumpAndSettle();
+      // 5+4+3 = 12: the last player may not take 1.
+      expect(find.byIcon(Icons.lock_rounded), findsWidgets);
+      await tester.tap(find.text('0').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining(lang == 'ar' ? 'الطلبات كاملة' : 'All bids in'), findsOneWidget);
       expect(find.text(lang == 'ar' ? 'جولة 1' : 'Round 1'), findsOneWidget);
     });
   }

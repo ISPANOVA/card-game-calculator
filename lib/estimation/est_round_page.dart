@@ -22,6 +22,13 @@ const trumpSymbols = {
   EstTrump.noTrump: 'NT',
 };
 
+/// Risk the last bidder takes on: one level for every trick the bids are
+/// away from 13 beyond the first (13±2 risk, ±3 double, ±4 or more triple).
+int riskFor(int totalBids) => ((totalBids - 13).abs() - 1).clamp(0, 3);
+
+/// Entering a round the way it is played: pick who has the call and his
+/// number, then the others in turn tap theirs on a 0–13 pad. Numbers the
+/// rules forbid are locked. Then the tricks, the same way.
 class EstRoundPage extends StatefulWidget {
   final EstGame game;
 
@@ -36,80 +43,190 @@ class EstRoundPage extends StatefulWidget {
 
 class _EstRoundPageState extends State<EstRoundPage> {
   late final EstRound? _init = widget.initial;
-  late final List<int> _bids = List.of(_init?.bids ?? const [0, 0, 0, 0]);
+  late final List<int?> _bids = [for (var p = 0; p < 4; p++) _init?.bids[p]];
   late int _caller = _init?.caller ?? -1;
-  late bool _callerManual = (_init?.caller ?? -1) >= 0;
-  late final List<bool> _withs = List.of(_init?.withs ?? const [false, false, false, false]);
   late final List<bool> _dashCalls = List.of(_init?.dashCalls ?? const [false, false, false, false]);
-  late final List<int> _risk = List.of(_init?.risk ?? const [0, 0, 0, 0]);
   late EstTrump _trump = _init?.trump ?? EstTrump.none;
-  late final List<int> _tricks = List.of(_init?.tricks ?? const [0, 0, 0, 0]);
 
-  int get _roundIndex => widget.index ?? widget.game.rounds.length;
-  bool get _fast => widget.game.isFast(_roundIndex);
+  /// Tricks are only known for a saved round (a draft has none yet).
+  late final List<int?> _tricks = [for (var p = 0; p < 4; p++) widget.index != null ? _init?.tricks[p] : null];
+
+  /// 0: bids, 1: tricks.
+  late int _phase = _bidsDone ? 1 : 0;
+
+  /// The player whose number the pad is entering (-1: none).
+  late int _active = _phase == 0 ? (_caller >= 0 ? _nextBidder() : -1) : _nextTricks();
+
   EstRules get _rules => widget.game.rules;
+  int get _roundIndex => widget.index ?? widget.game.rounds.length;
 
-  EstRound get _round => EstRound(
-        bids: List.of(_bids),
-        caller: _caller,
-        withs: [for (var p = 0; p < 4; p++) _withs[p] && _caller >= 0 && p != _caller && _bids[p] == _bids[_caller]],
-        dashCalls: [for (var p = 0; p < 4; p++) _dashCalls[p] && _bids[p] == 0],
-        risk: List.of(_risk),
-        trump: _trump,
-        tricks: List.of(_tricks),
-      );
+  /// Bidding order: the caller, then round the table.
+  List<int> get _order => _caller < 0 ? const [0, 1, 2, 3] : [for (var i = 0; i < 4; i++) (_caller + i) % 4];
 
-  /// The multiplier this round is played at (Sa'aydeh from the rounds before).
-  int get _multiplier {
-    final before = EstGame(
-      id: '',
-      created: widget.game.created,
-      players: widget.game.players,
-      rules: _rules,
-      rounds: widget.game.rounds.sublist(0, _roundIndex.clamp(0, widget.game.rounds.length)),
+  bool get _bidsDone => _caller >= 0 && _bids.every((b) => b != null);
+  int get _bidTotal => _bids.fold(0, (a, b) => a + (b ?? 0));
+  int get _lastBidder => (_caller + 3) % 4;
+
+  int _nextBidder() => _order.firstWhere((p) => _bids[p] == null, orElse: () => -1);
+  int _nextTricks() => _order.firstWhere((p) => _tricks[p] == null, orElse: () => -1);
+
+  int get _multiplier => EstGame(
+        id: '',
+        created: widget.game.created,
+        players: widget.game.players,
+        rules: _rules,
+        rounds: widget.game.rounds.sublist(0, _roundIndex.clamp(0, widget.game.rounds.length)),
+      ).nextMultiplier;
+
+  EstRound _round() {
+    final bids = [for (final b in _bids) b ?? 0];
+    final total = bids.fold<int>(0, (a, b) => a + b);
+    return EstRound(
+      bids: bids,
+      caller: _caller,
+      withs: [for (var p = 0; p < 4; p++) p != _caller && _caller >= 0 && _bids[p] != null && bids[p] == bids[_caller]],
+      dashCalls: [for (var p = 0; p < 4; p++) _dashCalls[p] && bids[p] == 0],
+      risk: [for (var p = 0; p < 4; p++) _bidsDone && p == _lastBidder ? riskFor(total) : 0],
+      trump: _trump,
+      tricks: [for (final t in _tricks) t ?? 0],
     );
-    return before.nextMultiplier;
   }
 
-  void _setBid(int p, int v) {
+  bool get _bidsValid => _bidsDone && _round().problems(_rules).where((e) => e != 'tricks').isEmpty;
+
+  // ------------------------------------------------------------ the rules ---
+
+  /// Whether [p] may bid [n].
+  bool _bidAllowed(int p, int n) {
+    final others = [for (var q = 0; q < 4; q++) if (q != p) _bids[q]];
+    if (p == _caller) {
+      if (n < _rules.minCall) return false;
+      // Nobody may have bid more than the call.
+      if (others.any((b) => b != null && b > n)) return false;
+    } else {
+      if (_caller < 0 || _bids[_caller] == null) return false;
+      if (n > _bids[_caller]!) return false;
+      if (n == 0) {
+        final dashes = [for (var q = 0; q < 4; q++) if (q != p && _bids[q] == 0) q].length;
+        if (dashes >= 2) return false;
+      }
+    }
+    // The last number in may not bring the total to 13.
+    if (others.every((b) => b != null) && others.fold<int>(0, (a, b) => a + b!) + n == 13) return false;
+    return true;
+  }
+
+  bool _tricksAllowed(int p, int n) {
+    final others = [for (var q = 0; q < 4; q++) if (q != p) _tricks[q]];
+    final taken = others.fold<int>(0, (a, b) => a + (b ?? 0));
+    if (taken + n > 13) return false;
+    if (others.every((t) => t != null) && taken + n != 13) return false;
+    return true;
+  }
+
+  // ------------------------------------------------------------- actions ---
+
+  void _tapPlayer(int p) {
+    HapticFeedback.selectionClick();
     setState(() {
-      _bids[p] = v;
-      if (!_callerManual) {
-        final top = _bids.reduce((a, b) => a > b ? a : b);
-        final tops = [for (var i = 0; i < 4; i++) if (_bids[i] == top) i];
-        _caller = (tops.length == 1 && top >= _rules.minCall) ? tops.first : -1;
+      if (_phase == 0 && _caller < 0) {
+        _caller = p;
+        _dashCalls[p] = false;
+      }
+      _active = p;
+    });
+  }
+
+  void _pick(int n) {
+    final p = _active;
+    if (p < 0) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (_phase == 0) {
+        _bids[p] = n;
+        if (n != 0) _dashCalls[p] = false;
+        // A lower call can leave someone's bid above it: clear those.
+        if (p == _caller) {
+          for (var q = 0; q < 4; q++) {
+            if (q != p && _bids[q] != null && _bids[q]! > n) _bids[q] = null;
+          }
+        }
+        _active = _nextBidder();
+      } else {
+        _tricks[p] = n;
+        final missing = [for (var q = 0; q < 4; q++) if (_tricks[q] == null) q];
+        if (missing.length == 1) {
+          final rest = 13 - _tricks.fold<int>(0, (a, b) => a + (b ?? 0));
+          if (rest >= 0) _tricks[missing.first] = rest;
+        }
+        _active = _nextTricks();
       }
     });
   }
 
-  String? _bidError(List<String> problems) {
-    if (!_fast && _caller < 0) return context.tr('e_noCaller');
-    for (final code in ['bids13', 'minCall', 'callerMax', 'with', 'dash', 'bids']) {
-      if (problems.contains(code)) return context.tr('e_$code', {'n': _rules.minCall});
-    }
-    return null;
+  void _dashCall() {
+    final p = _active;
+    if (p < 0 || p == _caller) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _dashCalls[p] = true;
+      _bids[p] = 0;
+      _active = _nextBidder();
+    });
   }
+
+  void _changeCaller() {
+    setState(() {
+      _caller = -1;
+      for (var p = 0; p < 4; p++) {
+        _bids[p] = null;
+        _dashCalls[p] = false;
+      }
+      _active = -1;
+    });
+  }
+
+  void _setPhase(int phase) {
+    setState(() {
+      _phase = phase;
+      _active = phase == 0 ? (_caller >= 0 ? _nextBidder() : -1) : _nextTricks();
+    });
+  }
+
+  // ---------------------------------------------------------------- view ---
 
   @override
   Widget build(BuildContext context) {
     final players = widget.game.players;
-    final round = _round;
-    final problems = round.problems(_rules);
-    final bidError = _bidError(problems);
-    final trickTotal = _tricks.fold<int>(0, (a, b) => a + b);
-    final error = bidError ?? (problems.contains('tricks') ? context.tr('errTricks', {'n': trickTotal}) : null);
+    final round = _round();
     final mult = _multiplier;
-    final allLost = trickTotal == 13 && round.allLost && _rules.saaydeh;
-    final preview = allLost ? const [0, 0, 0, 0] : [for (final v in round.baseScores(_rules)) v * mult];
-    final total = round.totalBids;
+    final total = _bidTotal;
+    final tricksDone = _tricks.every((t) => t != null);
+    final allLost = tricksDone && round.allLost && _rules.saaydeh;
+    final preview = !tricksDone
+        ? null
+        : (allLost ? const [0, 0, 0, 0] : [for (final v in round.baseScores(_rules)) v * mult]);
+    final fast = widget.game.isFast(_roundIndex);
     final editingSaved = widget.index != null;
+    final bidsValid = _bidsValid;
+
+    String? prompt;
+    if (_phase == 0) {
+      if (_caller < 0) {
+        prompt = context.tr('whoCalls');
+      } else if (_active >= 0) {
+        prompt = context.tr(_active == _caller ? 'callHowMany' : 'howMany', {'name': players[_active]});
+      }
+    } else if (_active >= 0) {
+      prompt = context.tr('tricksHowMany', {'name': players[_active]});
+    }
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(context.tr('roundN', {'n': _roundIndex + 1})),
         actions: [
-          if (_fast) const Padding(padding: EdgeInsetsDirectional.only(end: 6), child: Center(child: Pill('⚡'))),
+          if (fast) const Padding(padding: EdgeInsetsDirectional.only(end: 6), child: Center(child: Pill('⚡'))),
           if (mult > 1)
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 12),
@@ -121,109 +238,111 @@ class _EstRoundPageState extends State<EstRoundPage> {
         child: SafeArea(
           bottom: false,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(14, 6, 14, 24),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
             children: [
-              SectionTitle(
-                context.tr('bids'),
-                icon: Icons.record_voice_over_rounded,
-                trailing: total == 0
-                    ? null
-                    : Pill(
-                        total == 13
-                            ? '= 13'
-                            : (total > 13 ? '${context.tr('over')} +${total - 13}' : '${context.tr('under')} −${13 - total}'),
-                        color: total == 13 ? Felt.lose : (total > 13 ? Felt.seats[2] : Felt.seats[1]),
-                        filled: true,
-                      ),
-              ),
-              for (var p = 0; p < 4; p++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _BidCard(
-                    name: players[p],
-                    seat: p,
-                    bid: _bids[p],
-                    isCaller: _caller == p,
-                    canWith: _caller >= 0 && _caller != p && _bids[p] == _bids[_caller],
-                    isWith: _withs[p],
-                    dashCall: _dashCalls[p],
-                    risk: _risk[p],
-                    onBid: (v) => _setBid(p, v),
-                    onCaller: () => setState(() {
-                      _callerManual = true;
-                      _caller = _caller == p ? -1 : p;
-                    }),
-                    onWith: () => setState(() => _withs[p] = !_withs[p]),
-                    onDash: () => setState(() => _dashCalls[p] = !_dashCalls[p]),
-                    onRisk: () => setState(() => _risk[p] = (_risk[p] + 1) % 4),
+              SegmentedButton<int>(
+                segments: [
+                  ButtonSegment(
+                      value: 0, label: Text(context.tr('bids')), icon: const Icon(Icons.record_voice_over_rounded)),
+                  ButtonSegment(
+                    value: 1,
+                    label: Text(context.tr('tricks')),
+                    icon: const Icon(Icons.back_hand_rounded),
+                    enabled: bidsValid,
                   ),
-                ),
-              SectionTitle(context.tr('trump'), icon: Icons.style_rounded),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                ],
+                selected: {_phase},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => _setPhase(s.first),
+              ),
+              const SizedBox(height: 12),
+              // The four players side by side.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final e in trumpSymbols.entries)
-                    ChoiceChip(
-                      label: Text(e.value,
-                          style: TextStyle(
-                            fontSize: e.key == EstTrump.noTrump ? 14 : 20,
-                            fontWeight: FontWeight.w900,
-                            color: _trump == e.key
-                                ? Felt.deep
-                                : (e.key == EstTrump.hearts || e.key == EstTrump.diamonds
-                                    ? const Color(0xFFFF8A80)
-                                    : Felt.ivory),
-                          )),
-                      selected: _trump == e.key,
-                      showCheckmark: false,
-                      selectedColor: Felt.gold,
-                      backgroundColor: Colors.white.withValues(alpha: 0.05),
-                      side: BorderSide(color: Felt.gold.withValues(alpha: 0.35)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      onSelected: (_) => setState(() => _trump = _trump == e.key ? EstTrump.none : e.key),
+                  for (var p = 0; p < 4; p++)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: _PlayerTile(
+                          name: players[p],
+                          seat: p,
+                          active: _active == p,
+                          bid: _bids[p],
+                          tricks: _tricks[p],
+                          showTricks: _phase == 1,
+                          isCaller: _caller == p,
+                          isWith: round.withs[p],
+                          dashCall: round.dashCalls[p],
+                          risk: round.risk[p],
+                          onTap: () => _tapPlayer(p),
+                        ),
+                      ),
                     ),
                 ],
               ),
-              SectionTitle(
-                context.tr('tricksTaken'),
-                icon: Icons.back_hand_rounded,
-                trailing: RemainingPill(total: trickTotal),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(prompt ?? context.tr(_phase == 0 ? 'bidsReady' : 'tricksReady'),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900, fontSize: 16, color: prompt == null ? Felt.win : Felt.ivory)),
+                  ),
+                  if (_phase == 0 && _bidsDone)
+                    Pill('${context.tr(total > 13 ? 'over' : 'under')} ${diffText(total - 13)}',
+                        color: total > 13 ? Felt.seats[2] : Felt.seats[1], filled: true),
+                  if (_phase == 1) RemainingPill(total: _tricks.fold(0, (a, b) => a + (b ?? 0))),
+                ],
               ),
-              Panel(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                child: Column(
+              const SizedBox(height: 10),
+              if (_active >= 0)
+                _NumberPad(
+                  selected: _phase == 0 ? _bids[_active] : _tricks[_active],
+                  allowed: (n) => _phase == 0 ? _bidAllowed(_active, n) : _tricksAllowed(_active, n),
+                  onPick: _pick,
+                ),
+              if (_phase == 0 && _active >= 0 && _active != _caller && _bidAllowed(_active, 0)) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _dashCall,
+                  icon: const Icon(Icons.remove_circle_rounded),
+                  label: Text(context.tr('dashCall')),
+                ),
+              ],
+              if (_phase == 0 && _caller >= 0) ...[
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    for (var p = 0; p < 4; p++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5),
-                        child: Row(
-                          children: [
-                            Expanded(child: SeatName(players[p], p)),
-                            Text(context.tr('bidN', {'n': _bids[p]}),
-                                style: const TextStyle(color: Felt.muted, fontSize: 12.5, fontWeight: FontWeight.w700)),
-                            const SizedBox(width: 6),
-                            SizedBox(
-                              width: 22,
-                              child: trickTotal == 13
-                                  ? Icon(
-                                      _tricks[p] == _bids[p] ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                                      size: 18,
-                                      color: _tricks[p] == _bids[p] ? Felt.win : Felt.lose,
-                                    )
-                                  : null,
+                    Text(context.tr('trump'),
+                        style: const TextStyle(color: Felt.muted, fontWeight: FontWeight.w800, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final e in trumpSymbols.entries)
+                            _TrumpChip(
+                              symbol: e.value,
+                              red: e.key == EstTrump.hearts || e.key == EstTrump.diamonds,
+                              selected: _trump == e.key,
+                              onTap: () => setState(() => _trump = _trump == e.key ? EstTrump.none : e.key),
                             ),
-                            NumberStepper(
-                              value: _tricks[p],
-                              compact: true,
-                              onChanged: (v) => setState(() => _tricks[p] = v),
-                            ),
-                          ],
-                        ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
-              ),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    onPressed: _changeCaller,
+                    icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                    label: Text(context.tr('changeCall')),
+                  ),
+                ),
+              ],
               if (allLost)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -247,19 +366,20 @@ class _EstRoundPageState extends State<EstRoundPage> {
       ),
       bottomNavigationBar: SaveBar(
         players: players,
-        preview: trickTotal == 13 ? preview : null,
-        error: error,
-        label: context.tr('saveRound'),
-        onSave: error == null
-            ? () {
-                HapticFeedback.mediumImpact();
-                Navigator.pop(context, EstEntry(round, true));
-              }
-            : null,
-        extra: editingSaved
+        preview: _phase == 1 ? preview : null,
+        label: context.tr(_phase == 0 ? 'nextTricks' : 'saveRound'),
+        onSave: _phase == 0
+            ? (bidsValid ? () => _setPhase(1) : null)
+            : (tricksDone && round.problems(_rules).isEmpty
+                ? () {
+                    HapticFeedback.mediumImpact();
+                    Navigator.pop(context, EstEntry(round, true));
+                  }
+                : null),
+        extra: editingSaved || !bidsValid
             ? null
             : OutlinedButton(
-                onPressed: bidError == null ? () => Navigator.pop(context, EstEntry(round, false)) : null,
+                onPressed: () => Navigator.pop(context, EstEntry(round, false)),
                 child: Text(context.tr('saveBids')),
               ),
       ),
@@ -267,115 +387,206 @@ class _EstRoundPageState extends State<EstRoundPage> {
   }
 }
 
-class _BidCard extends StatelessWidget {
+class _PlayerTile extends StatelessWidget {
   final String name;
   final int seat;
-  final int bid;
+  final bool active;
+  final int? bid;
+  final int? tricks;
+  final bool showTricks;
   final bool isCaller;
-  final bool canWith;
   final bool isWith;
   final bool dashCall;
   final int risk;
-  final ValueChanged<int> onBid;
-  final VoidCallback onCaller;
-  final VoidCallback onWith;
-  final VoidCallback onDash;
-  final VoidCallback onRisk;
+  final VoidCallback onTap;
 
-  const _BidCard({
+  const _PlayerTile({
     required this.name,
     required this.seat,
+    required this.active,
     required this.bid,
+    required this.tricks,
+    required this.showTricks,
     required this.isCaller,
-    required this.canWith,
     required this.isWith,
     required this.dashCall,
     required this.risk,
-    required this.onBid,
-    required this.onCaller,
-    required this.onWith,
-    required this.onDash,
-    required this.onRisk,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Panel(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      glow: isCaller ? Felt.gold : null,
-      radius: 18,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: SeatName(name, seat, size: 16)),
-              if (bid == 0) ...[Pill(context.tr('dash'), color: Felt.seats[1]), const SizedBox(width: 8)],
-              NumberStepper(value: bid, onChanged: onBid, compact: true),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _Toggle(label: context.tr('call'), icon: Icons.campaign_rounded, on: isCaller, onTap: onCaller),
-              if (canWith) _Toggle(label: context.tr('with'), icon: Icons.handshake_rounded, on: isWith, onTap: onWith),
-              if (bid == 0)
-                _Toggle(label: context.tr('dashCall'), icon: Icons.remove_circle_rounded, on: dashCall, onTap: onDash),
-              _Toggle(
-                label: risk == 0 ? context.tr('risk') : '${context.tr('risk')} ×$risk',
-                icon: Icons.local_fire_department_rounded,
-                on: risk > 0,
-                onTap: onRisk,
-                color: Felt.seats[2],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Toggle extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool on;
-  final VoidCallback onTap;
-  final Color color;
-  const _Toggle({required this.label, required this.icon, required this.on, required this.onTap, this.color = Felt.gold});
-
-  @override
-  Widget build(BuildContext context) {
-    final r = BorderRadius.circular(12);
+    final c = Felt.seats[seat];
+    final won = showTricks && tricks != null && bid != null ? tricks == bid : null;
+    final badges = <(String, Color)>[
+      if (isCaller) (context.tr('call'), Felt.gold),
+      if (isWith) (context.tr('with'), Felt.gold),
+      if (dashCall) (context.tr('dashCall'), Felt.seats[1]) else if (bid == 0) (context.tr('dash'), Felt.seats[1]),
+      if (risk > 0) (risk == 1 ? context.tr('risk') : '${context.tr('risk')} ×$risk', Felt.seats[2]),
+    ];
+    final r = BorderRadius.circular(16);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
+      duration: const Duration(milliseconds: 180),
+      constraints: const BoxConstraints(minHeight: 124),
       decoration: BoxDecoration(
         borderRadius: r,
-        color: on ? color : Colors.white.withValues(alpha: 0.05),
-        border: Border.all(color: color.withValues(alpha: on ? 1 : 0.3)),
+        color: active ? c.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.05),
+        border: Border.all(
+          color: active ? c : (isCaller ? Felt.gold.withValues(alpha: 0.6) : Colors.white12),
+          width: active ? 2 : 1,
+        ),
+        boxShadow: active ? [BoxShadow(color: c.withValues(alpha: 0.3), blurRadius: 14)] : null,
       ),
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
           borderRadius: r,
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
+          onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+            child: Column(
               children: [
-                Icon(icon, size: 16, color: on ? Felt.deep : color),
-                const SizedBox(width: 5),
-                Text(label,
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: on ? Felt.deep : Felt.ivory)),
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: c)),
+                if (showTricks) ...[
+                  Text(tricks == null ? '–' : '$tricks',
+                      style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          height: 1.2,
+                          color: won == null ? Felt.ivory : (won ? Felt.win : Felt.lose))),
+                  Text(context.tr('bidN', {'n': bid ?? '–'}),
+                      style: const TextStyle(fontSize: 11.5, color: Felt.muted, fontWeight: FontWeight.w700)),
+                ] else
+                  Text(bid == null ? '–' : '$bid',
+                      style: TextStyle(
+                          fontSize: 30, fontWeight: FontWeight.w900, height: 1.2, color: isCaller ? Felt.gold : Felt.ivory)),
+                for (final b in badges)
+                  Container(
+                    margin: const EdgeInsets.only(top: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: b.$2.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(b.$1,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: b.$2)),
+                  ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 0–13 in two rows of seven; numbers the rules forbid are locked.
+class _NumberPad extends StatelessWidget {
+  final int? selected;
+  final bool Function(int) allowed;
+  final ValueChanged<int> onPick;
+  const _NumberPad({required this.selected, required this.allowed, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: LayoutBuilder(builder: (context, c) {
+        const gap = 6.0;
+        final size = ((c.maxWidth - gap * 6) / 7).clamp(30.0, 64.0);
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (var n = 0; n <= 13; n++)
+              _NumKey(n: n, size: size, selected: selected == n, enabled: allowed(n), onTap: () => onPick(n)),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+class _NumKey extends StatelessWidget {
+  final int n;
+  final double size;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _NumKey({required this.n, required this.size, required this.selected, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = BorderRadius.circular(14);
+    return SizedBox(
+      width: size,
+      height: size * 1.05,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: r,
+          gradient: selected ? Felt.goldGradient : null,
+          color: selected ? null : Colors.white.withValues(alpha: enabled ? 0.08 : 0.02),
+          border: Border.all(color: enabled || selected ? Felt.gold.withValues(alpha: selected ? 1 : 0.3) : Colors.white10),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: r,
+            onTap: enabled ? onTap : null,
+            child: Center(
+              child: enabled || selected
+                  ? Text('$n',
+                      style: TextStyle(
+                          fontSize: size * 0.42, fontWeight: FontWeight.w900, color: selected ? Felt.deep : Felt.ivory))
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Text('$n',
+                            style: TextStyle(
+                                fontSize: size * 0.38, fontWeight: FontWeight.w800, color: Felt.muted.withValues(alpha: 0.25))),
+                        Icon(Icons.lock_rounded, size: size * 0.3, color: Felt.muted.withValues(alpha: 0.45)),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrumpChip extends StatelessWidget {
+  final String symbol;
+  final bool red;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TrumpChip({required this.symbol, required this.red, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 42,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? Felt.gold : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Felt.gold.withValues(alpha: selected ? 1 : 0.3)),
+        ),
+        child: Text(symbol,
+            style: TextStyle(
+              fontSize: symbol == 'NT' ? 13 : 19,
+              fontWeight: FontWeight.w900,
+              color: selected ? Felt.deep : (red ? const Color(0xFFFF8A80) : Felt.ivory),
+            )),
       ),
     );
   }

@@ -195,7 +195,7 @@ class _CardBlock extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
-                    Text(doubled ? '${value * 2} • +${-value}' : '$value',
+                    Text(doubled ? '${diffText(value * 2)} • ${diffText(-value)}' : diffText(value),
                         style: const TextStyle(color: Felt.lose, fontWeight: FontWeight.w800, fontSize: 13)),
                   ],
                 ),
@@ -273,7 +273,7 @@ class _CountBlock extends StatelessWidget {
               Text(icon, style: TextStyle(fontSize: 22, color: iconColor)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('$title  (−$each)', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
+                child: Text('$title  (${diffText(-each)})', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
               ),
               RemainingPill(total: total),
             ],

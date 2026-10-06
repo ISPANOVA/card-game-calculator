@@ -129,7 +129,7 @@ class TrixGamePage extends StatelessWidget {
                           Expanded(
                             child: _ContractButton(
                               label: context.tr('trix'),
-                              sub: '+500',
+                              sub: diffText(500),
                               icon: Icons.stairs_rounded,
                               done: game.played(k, TrixContract.trix),
                               onTap: () => addOrEdit(TrixContract.trix, k),
@@ -139,7 +139,7 @@ class TrixGamePage extends StatelessWidget {
                           Expanded(
                             child: _ContractButton(
                               label: context.tr('complex'),
-                              sub: '−500',
+                              sub: diffText(-500),
                               icon: Icons.layers_rounded,
                               done: game.played(k, TrixContract.complex),
                               onTap: () => addOrEdit(TrixContract.complex, k),
@@ -234,9 +234,9 @@ class _KingdomTile extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _Dot(on: trix, label: 'T'),
+              _Dot(on: trix, label: context.tr('trixShort')),
               const SizedBox(width: 4),
-              _Dot(on: complex, label: 'C'),
+              _Dot(on: complex, label: context.tr('complexShort')),
             ],
           ),
         ],
