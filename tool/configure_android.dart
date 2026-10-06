@@ -108,9 +108,9 @@ void _native() {
       .where((f) => f.path.endsWith('MainActivity.kt'))
       .toList();
   if (activities.length != 1) throw 'MainActivity.kt not found';
-  final src = File('tool/android/MainActivity.kt').readAsStringSync();
+  final src = File('tool/native/MainActivity.kt').readAsStringSync();
   final pkg = RegExp(r'^package\s+(\S+)', multiLine: true).firstMatch(activities.first.readAsStringSync())!.group(1)!;
   activities.first.writeAsStringSync(src.replaceFirst(RegExp(r'^package\s+\S+', multiLine: true), 'package $pkg'));
   final xml = Directory('android/app/src/main/res/xml')..createSync(recursive: true);
-  File('tool/android/share_paths.xml').copySync('${xml.path}/share_paths.xml');
+  File('tool/native/share_paths.xml').copySync('${xml.path}/share_paths.xml');
 }
