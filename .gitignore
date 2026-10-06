@@ -1,0 +1,17 @@
+.dart_tool/
+.packages
+build/
+android/
+ios/
+web/
+linux/
+macos/
+windows/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+*.iml
+.vscode/
+pubspec.lock
+keystore/*.p12
+key.properties

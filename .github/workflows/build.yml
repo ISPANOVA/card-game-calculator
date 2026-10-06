@@ -1,0 +1,132 @@
+name: Build APK & AAB
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'store/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # The public version stays 1.0.0 until the first Google Play release.
+      # BUILD_NUMBER (versionCode) keeps rising so every APK installs over
+      # the previous one.
+      BUILD_NAME: 1.0.0
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          channel: stable
+          cache: true
+
+      - name: Analyze & test
+        run: |
+          set -o pipefail
+          {
+            flutter --version
+            flutter pub get
+            flutter analyze --no-fatal-infos
+            flutter test
+          } 2>&1 | tee -a build_log.txt
+
+      - name: Check signing secret
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "Missing repository secret KEYSTORE_PASSWORD" | tee build_log.txt
+            echo "::error::Add the repository secret KEYSTORE_PASSWORD (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Generate & configure Android project
+        run: |
+          set -o pipefail
+          {
+            flutter create --platforms=android --org com.smrh --project-name card_game_calculator .
+            dart run flutter_launcher_icons
+            dart run tool/configure_android.dart
+          } 2>&1 | tee -a build_log.txt
+
+      - name: Signing config
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in keystore/upload.p12.enc -out keystore/upload.p12 -pass env:KEYSTORE_PASSWORD
+          {
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyPassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=cardcalc"
+            echo "storeFile=$GITHUB_WORKSPACE/keystore/upload.p12"
+          } > android/key.properties
+
+      - name: Build APK
+        run: |
+          set -o pipefail
+          flutter build apk --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER 2>&1 | tee -a build_log.txt
+
+      - name: Build App Bundle (Google Play)
+        run: |
+          set -o pipefail
+          flutter build appbundle --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER 2>&1 | tee -a build_log.txt
+
+      - name: Rename outputs
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/CardGameCalculator-$BUILD_NAME-build$BUILD_NUMBER.apk
+          cp build/app/outputs/bundle/release/app-release.aab dist/CardGameCalculator-$BUILD_NAME-build$BUILD_NUMBER.aab
+          ls -la dist
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ env.BUILD_NUMBER }}
+          name: Card Game Calculator ${{ env.BUILD_NAME }} (build ${{ env.BUILD_NUMBER }})
+          body: |
+            ${{ github.event.head_commit.message }}
+
+            • CardGameCalculator-${{ env.BUILD_NAME }}-build${{ env.BUILD_NUMBER }}.apk — install directly on the phone
+            • CardGameCalculator-${{ env.BUILD_NAME }}-build${{ env.BUILD_NUMBER }}.aab — upload to Google Play
+          make_latest: true
+          files: |
+            dist/CardGameCalculator-${{ env.BUILD_NAME }}-build${{ env.BUILD_NUMBER }}.apk
+            dist/CardGameCalculator-${{ env.BUILD_NAME }}-build${{ env.BUILD_NUMBER }}.aab
+
+      - name: Clean secrets
+        if: always()
+        run: rm -f android/key.properties keystore/upload.p12
+
+      - name: Save log on failure
+        if: failure()
+        run: |
+          [ -f build_log.txt ] || echo "no log" > build_log.txt
+          cp build_log.txt "$RUNNER_TEMP/build_log.txt"
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout --orphan ci-logs-tmp
+          git rm -rqf --cached . > /dev/null
+          cp "$RUNNER_TEMP/build_log.txt" build_log.txt
+          echo "run ${{ github.run_number }} @ ${{ github.sha }}" > RUN.txt
+          git add -f build_log.txt RUN.txt
+          git commit -m "CI log for run ${{ github.run_number }}"
+          git push -f origin HEAD:ci-logs
