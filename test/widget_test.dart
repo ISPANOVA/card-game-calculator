@@ -47,10 +47,30 @@ void main() {
       // Complex page opens and lays out.
       await tester.tap(find.byIcon(Icons.layers_rounded).first);
       await tester.pumpAndSettle();
-      expect(find.text('K\n♥'), findsOneWidget);
-      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      expect(find.text('K'), findsOneWidget);
+      final p = lang == 'ar' ? 'لاعب' : 'Player';
+      // Player 1 takes the King and all four Queens.
+      for (var i = 0; i < 5; i++) {
+        await tester.tap(find.text('$p 1').first);
+        await tester.pumpAndSettle();
+      }
+      // Diamonds: 13 for player 1, none for the others (the last fills in).
+      await tester.tap(find.text('13').last);
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.layers_rounded), findsOneWidget);
+      await tester.tap(find.text('0').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('0').last);
+      await tester.pumpAndSettle();
+      // Tricks: the same.
+      await tester.tap(find.text('13').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('0').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('0').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.check_rounded).last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('-500'), findsWidgets);
     });
 
     testWidgets('plays an Estimation round ($lang)', (tester) async {

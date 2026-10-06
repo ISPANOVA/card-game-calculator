@@ -14,13 +14,30 @@ class EstEntry {
   const EstEntry(this.round, this.complete);
 }
 
+/// Trump choices, strongest first: Sun (no trump), then the suits.
 const trumpSymbols = {
+  EstTrump.noTrump: 'sun',
   EstTrump.spades: '♠',
   EstTrump.hearts: '♥',
   EstTrump.diamonds: '♦',
   EstTrump.clubs: '♣',
-  EstTrump.noTrump: 'NT',
 };
+
+const sunColor = Color(0xFFFFB74D);
+
+/// The trump of a round as a small pill (nothing when none was set).
+class TrumpPill extends StatelessWidget {
+  final EstTrump trump;
+  const TrumpPill(this.trump, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (trump == EstTrump.none) return const SizedBox.shrink();
+    if (trump == EstTrump.noTrump) return Pill(context.tr('sun'), icon: Icons.wb_sunny_rounded, color: sunColor);
+    final red = trump == EstTrump.hearts || trump == EstTrump.diamonds;
+    return Pill(trumpSymbols[trump]!, color: red ? const Color(0xFFFF8A80) : Felt.gold);
+  }
+}
 
 /// Risk the last bidder takes on: one level for every trick the bids are
 /// away from 13 beyond the first (13±2 risk, ±3 double, ±4 or more triple).
@@ -297,7 +314,7 @@ class _EstRoundPageState extends State<EstRoundPage> {
               ),
               const SizedBox(height: 10),
               if (_active >= 0)
-                _NumberPad(
+                NumberPad(
                   selected: _phase == 0 ? _bids[_active] : _tricks[_active],
                   allowed: (n) => _phase == 0 ? _bidAllowed(_active, n) : _tricksAllowed(_active, n),
                   onPick: _pick,
@@ -485,81 +502,6 @@ class _PlayerTile extends StatelessWidget {
   }
 }
 
-/// 0–13 in two rows of seven; numbers the rules forbid are locked.
-class _NumberPad extends StatelessWidget {
-  final int? selected;
-  final bool Function(int) allowed;
-  final ValueChanged<int> onPick;
-  const _NumberPad({required this.selected, required this.allowed, required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: LayoutBuilder(builder: (context, c) {
-        const gap = 6.0;
-        final size = ((c.maxWidth - gap * 6) / 7).clamp(30.0, 64.0);
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (var n = 0; n <= 13; n++)
-              _NumKey(n: n, size: size, selected: selected == n, enabled: allowed(n), onTap: () => onPick(n)),
-          ],
-        );
-      }),
-    );
-  }
-}
-
-class _NumKey extends StatelessWidget {
-  final int n;
-  final double size;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-  const _NumKey({required this.n, required this.size, required this.selected, required this.enabled, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final r = BorderRadius.circular(14);
-    return SizedBox(
-      width: size,
-      height: size * 1.05,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: r,
-          gradient: selected ? Felt.goldGradient : null,
-          color: selected ? null : Colors.white.withValues(alpha: enabled ? 0.08 : 0.02),
-          border: Border.all(color: enabled || selected ? Felt.gold.withValues(alpha: selected ? 1 : 0.3) : Colors.white10),
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: r,
-            onTap: enabled ? onTap : null,
-            child: Center(
-              child: enabled || selected
-                  ? Text('$n',
-                      style: TextStyle(
-                          fontSize: size * 0.42, fontWeight: FontWeight.w900, color: selected ? Felt.deep : Felt.ivory))
-                  : Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Text('$n',
-                            style: TextStyle(
-                                fontSize: size * 0.38, fontWeight: FontWeight.w800, color: Felt.muted.withValues(alpha: 0.25))),
-                        Icon(Icons.lock_rounded, size: size * 0.3, color: Felt.muted.withValues(alpha: 0.45)),
-                      ],
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _TrumpChip extends StatelessWidget {
   final String symbol;
   final bool red;
@@ -581,12 +523,14 @@ class _TrumpChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Felt.gold.withValues(alpha: selected ? 1 : 0.3)),
         ),
-        child: Text(symbol,
-            style: TextStyle(
-              fontSize: symbol == 'NT' ? 13 : 19,
-              fontWeight: FontWeight.w900,
-              color: selected ? Felt.deep : (red ? const Color(0xFFFF8A80) : Felt.ivory),
-            )),
+        child: symbol == 'sun'
+            ? Icon(Icons.wb_sunny_rounded, size: 22, color: selected ? Felt.deep : sunColor)
+            : Text(symbol,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  color: selected ? Felt.deep : (red ? const Color(0xFFFF8A80) : Felt.ivory),
+                )),
       ),
     );
   }

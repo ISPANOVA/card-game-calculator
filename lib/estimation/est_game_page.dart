@@ -202,8 +202,8 @@ class _DraftView extends StatelessWidget {
             children: [
               Text(context.tr('bids'), style: const TextStyle(color: Felt.muted, fontWeight: FontWeight.w800)),
               const Spacer(),
-              if (trumpSymbols[draft.trump] != null) ...[
-                Pill(trumpSymbols[draft.trump]!),
+              if (draft.trump != EstTrump.none) ...[
+                TrumpPill(draft.trump),
                 const SizedBox(width: 6),
               ],
               Pill('${context.tr(total > 13 ? 'over' : 'under')} ${diffText(total - 13)}',
@@ -266,7 +266,7 @@ class _EstRoundRow extends StatelessWidget {
               const SizedBox(width: 8),
               if (game.isFast(index)) ...[const Icon(Icons.bolt_rounded, size: 16, color: Felt.gold), const SizedBox(width: 4)],
               Pill(diffText(total - 13), color: total > 13 ? Felt.seats[2] : Felt.seats[1]),
-              if (trumpSymbols[r.trump] != null) ...[const SizedBox(width: 6), Pill(trumpSymbols[r.trump]!)],
+              if (r.trump != EstTrump.none) ...[const SizedBox(width: 6), TrumpPill(r.trump)],
               const Spacer(),
               if (result.saaydeh) Pill(context.tr('saaydeh'), color: Felt.seats[1], filled: true),
               if (!result.saaydeh && result.multiplier > 1) Pill('×${result.multiplier}', color: Felt.seats[1], filled: true),

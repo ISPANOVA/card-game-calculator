@@ -484,3 +484,78 @@ class RemainingPill extends StatelessWidget {
     );
   }
 }
+
+/// 0–13 in two rows of seven; numbers the rules forbid are locked.
+class NumberPad extends StatelessWidget {
+  final int? selected;
+  final bool Function(int) allowed;
+  final ValueChanged<int> onPick;
+  const NumberPad({super.key, required this.selected, required this.allowed, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: LayoutBuilder(builder: (context, c) {
+        const gap = 6.0;
+        final size = ((c.maxWidth - gap * 6) / 7).clamp(30.0, 64.0);
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (var n = 0; n <= 13; n++)
+              NumKey(n: n, size: size, selected: selected == n, enabled: allowed(n), onTap: () => onPick(n)),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+class NumKey extends StatelessWidget {
+  final int n;
+  final double size;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+  const NumKey({super.key, required this.n, required this.size, required this.selected, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = BorderRadius.circular(14);
+    return SizedBox(
+      width: size,
+      height: size * 1.05,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: r,
+          gradient: selected ? Felt.goldGradient : null,
+          color: selected ? null : Colors.white.withValues(alpha: enabled ? 0.08 : 0.02),
+          border: Border.all(color: enabled || selected ? Felt.gold.withValues(alpha: selected ? 1 : 0.3) : Colors.white10),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: r,
+            onTap: enabled ? onTap : null,
+            child: Center(
+              child: enabled || selected
+                  ? Text('$n',
+                      style: TextStyle(
+                          fontSize: size * 0.42, fontWeight: FontWeight.w900, color: selected ? Felt.deep : Felt.ivory))
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Text('$n',
+                            style: TextStyle(
+                                fontSize: size * 0.38, fontWeight: FontWeight.w800, color: Felt.muted.withValues(alpha: 0.25))),
+                        Icon(Icons.lock_rounded, size: size * 0.3, color: Felt.muted.withValues(alpha: 0.45)),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

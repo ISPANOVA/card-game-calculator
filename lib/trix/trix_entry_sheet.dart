@@ -62,6 +62,15 @@ class _TrixEntryState extends State<_TrixEntry> {
           const SizedBox(height: 4),
           Text(context.tr('trixTapOrder'),
               textAlign: TextAlign.center, style: const TextStyle(color: Felt.muted, height: 1.5)),
+          const SizedBox(height: 12),
+          Text(
+            _order.length >= 4
+                ? context.tr('trixDone')
+                : context.tr('trixWho', {'place': context.tr('place${_order.length + 1}')}),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 17, fontWeight: FontWeight.w900, color: _order.length >= 4 ? Felt.win : Felt.gold),
+          ),
           const SizedBox(height: 16),
           for (var p = 0; p < 4; p++)
             Padding(
