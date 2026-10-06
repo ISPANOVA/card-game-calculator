@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/demo.dart';
 import 'core/store.dart';
 import 'core/theme.dart';
 import 'home_page.dart';
@@ -15,6 +16,7 @@ Future<void> main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
   final state = await AppState.load();
+  if (kShots) state.lang = Uri.base.queryParameters['lang'] == 'en' ? 'en' : 'ar';
   runApp(CardGameCalculator(state: state));
 }
 
@@ -39,7 +41,7 @@ class CardGameCalculator extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: const HomePage(),
+          home: kShots ? demoHome(state, Uri.base.queryParameters['shot'] ?? 'home') : const HomePage(),
         ),
       ),
     );

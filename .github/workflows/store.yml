@@ -1,0 +1,74 @@
+name: Store assets & privacy page
+
+# Screenshots for Google Play (pushed to branch store-assets) and the
+# privacy page (Cloudflare Pages, when its secrets are set).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tool/store/**'
+      - 'tool/site/**'
+      - 'lib/core/demo.dart'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: store
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          channel: stable
+          cache: true
+
+      - name: Build web (screenshot mode)
+        run: |
+          flutter create --platforms=web --org com.smrh --project-name card_game_calculator .
+          flutter pub get
+          flutter build web --release --dart-define=SHOTS=true --no-web-resources-cdn
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Take screenshots
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tool/store/shots.py build/web "$RUNNER_TEMP/out/screens"
+
+      - name: Publish to branch store-assets
+        run: |
+          cd "$RUNNER_TEMP/out"
+          echo "${GITHUB_SHA}" > SHA.txt
+          git init -q -b store-assets
+          git config user.name ci-bot && git config user.email ci-bot@users.noreply.github.com
+          git add -A && git commit -qm "store screenshots ${GITHUB_RUN_NUMBER}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:store-assets
+
+  privacy-page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets to publish the privacy page."
+            exit 0
+          fi
+          npx --yes wrangler@4 pages project create card-game-calculator --production-branch main 2>&1 | tail -3 || true
+          npx --yes wrangler@4 pages deploy tool/site --project-name card-game-calculator --branch main --commit-dirty=true
