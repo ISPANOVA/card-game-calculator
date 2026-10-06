@@ -98,7 +98,7 @@ Widget demoHome(AppState state, String shot) {
           caller: 1,
           dashCalls: [false, false, false, true],
           risk: [0, 1, 0, 0],
-          trump: EstTrump.hearts,
+          trump: EstTrump.noTrump,
           tricks: [3, 6, 4, 0],
         ),
       );
