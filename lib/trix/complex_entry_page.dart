@@ -259,18 +259,18 @@ class _ComplexEntryPageState extends State<ComplexEntryPage> {
                 segments: [
                   ButtonSegment(
                     value: 0,
-                    label: Text(context.tr('cards')),
-                    icon: Icon(_cardsDone ? Icons.check_circle_rounded : Icons.style_rounded),
+                    label: _SegLabel(context.tr('cards')),
+                    icon: _cardsDone ? const Icon(Icons.check_circle_rounded) : null,
                   ),
                   ButtonSegment(
                     value: 1,
-                    label: Text(context.tr('diamonds')),
-                    icon: Icon(_diamondsDone ? Icons.check_circle_rounded : Icons.diamond_rounded),
+                    label: _SegLabel(context.tr('diamonds')),
+                    icon: _diamondsDone ? const Icon(Icons.check_circle_rounded) : null,
                   ),
                   ButtonSegment(
                     value: 2,
-                    label: Text(context.tr('tricks')),
-                    icon: Icon(_tricksDone ? Icons.check_circle_rounded : Icons.back_hand_rounded),
+                    label: _SegLabel(context.tr('tricks')),
+                    icon: _tricksDone ? const Icon(Icons.check_circle_rounded) : null,
                   ),
                 ],
                 selected: {_step},
@@ -639,4 +639,14 @@ class _DoubleButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A segment label that shrinks instead of wrapping.
+class _SegLabel extends StatelessWidget {
+  final String text;
+  const _SegLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) =>
+      FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1, softWrap: false));
 }

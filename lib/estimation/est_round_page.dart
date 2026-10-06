@@ -301,6 +301,11 @@ class _EstRoundPageState extends State<EstRoundPage> {
               const SizedBox(height: 14),
               Row(
                 children: [
+                  if (prompt == null)
+                    const Padding(
+                      padding: EdgeInsetsDirectional.only(end: 6),
+                      child: Icon(Icons.check_circle_rounded, color: Felt.win, size: 20),
+                    ),
                   Expanded(
                     child: Text(prompt ?? context.tr(_phase == 0 ? 'bidsReady' : 'tricksReady'),
                         style: TextStyle(
